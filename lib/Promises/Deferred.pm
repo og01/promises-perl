@@ -15,7 +15,7 @@ use constant IN_PROGRESS => 'in progress';
 use constant RESOLVED    => 'resolved';
 use constant REJECTED    => 'rejected';
 
-fieldhash my %CALLBACKS;
+fieldhash my %DATA;
 
 sub new {
     my $class = shift;
@@ -24,7 +24,7 @@ sub new {
 
 sub promise { Promises::Promise->new(shift) }
 sub status  { (shift)->{'status'} }
-sub result  { (shift)->{'result'} }
+sub result  { (shift)->_data->{'result'} }
 
 # predicates for all the status possibilities
 sub is_in_progress { (shift)->{'status'} eq IN_PROGRESS }
@@ -42,7 +42,7 @@ sub resolve {
     die "Cannot resolve. Already  " . $self->status
         unless $self->is_in_progress;
 
-    $self->{'result'} = [@_];
+    $self->_data->{'result'} = [@_];
     $self->{'status'} = RESOLVED;
     $self->_notify;
     $self;
@@ -53,7 +53,7 @@ sub reject {
     die "Cannot reject. Already  " . $self->status
         unless $self->is_in_progress;
 
-    $self->{'result'} = [@_];
+    $self->_data->{'result'} = [@_];
     $self->{'status'} = REJECTED;
     $self->_notify;
     $self;
@@ -157,10 +157,10 @@ sub _notify {
     my ($self) = @_;
 
 	my $cbs = $self->is_resolved
-		? $CALLBACKS{$self}{'resolved'}
-		: $CALLBACKS{$self}{'rejected'};
+		? $self->_callbacks->{'resolved'}
+		: $self->_callbacks->{'rejected'};
 
-	$CALLBACKS{$self} = {};
+	$self->_callbacks({});
 
     return $self->_notify_backend( $cbs, $self->result );
 }
@@ -180,7 +180,12 @@ sub _callable_or_undef {
     } @_;
 }
 
-sub _callbacks { $CALLBACKS{shift()} ||= {} }
+sub _callbacks {
+	my $self = shift;
+	$self->_data->{cbs} = $_[0] if exists $_[0];
+	return $self->_data->{cbs} ||= {};
+}
+sub _data { $DATA{shift()} ||= {} }
 
 1;
 
